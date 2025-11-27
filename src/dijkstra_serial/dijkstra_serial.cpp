@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     auto compute_end = std::chrono::steady_clock::now();
 
     double compute_time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(compute_end - compute_start).count();
-    printf("Compute time: %.9f s\n", compute_time_ms / 1000.0);
+    printf("Compute time: %.9f seconds\n", compute_time_ms / 1000.0);
 
     double read_time_ms =
         std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(compute_start - read_start).count();

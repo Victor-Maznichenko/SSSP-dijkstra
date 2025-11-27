@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
 
     // Вывод
     if (rank == 0) {
-        std::printf("Calc time: %.9f s\n", parallel_end_time - parallel_start_time);
+        std::printf("Compute time: %.9f seconds\n", parallel_end_time - parallel_start_time);
         std::printf("Matrix load time: %.9f s\n", parallel_start_time - read_start_time);
     }
 
