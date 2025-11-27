@@ -1,1 +1,3 @@
 .vscode
+graphs_data/**.txt
+build
