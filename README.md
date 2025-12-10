@@ -16,23 +16,18 @@
 - Unix-подобная система / WSL 
 
 ### Команды
-``` bash
-cd ./src              # Перейти в папку src
-make                  # Собирает последовательную и MPI версии программы
-make generate_graph   # Генерирует граф заданного размера (size=20000 по умолчанию)
-make run_serial       # Запускает последовательную версию Dijkstra на графе
-make run_mpi          # Запускает MPI версию Dijkstra на графе (по умолчанию 8 процессов)
-make clear            # Полная очистка сборки (удаляет build/)
+```bash
+# Запуск MPI программы
+cd ./src
+mpic++ ./dijkstra_mpi/dijkstra_mpi.cpp -Wall -o ./dijkstra_mpi/dijkstra_mpi.out
+mpiexec ./dijkstra_mpi/dijkstra_mpi.out -n 8
+
+# Запуск обычной программы
+cd ./src
+g++ ./dijkstra_serial/dijkstra_serial.cpp -Wall -o ./dijkstra_serial/dijkstra_serial.out
+./dijkstra_serial/dijkstra_serial.out
 ```
 
-### Примечания
-- Все бинарные файлы создаются в папке `build`:
-    - `build/dijkstra_serial/dijkstra_serial`
-    - `build/dijkstra_mpi/dijkstra_mpi`
-    - `build/generate_graph`
-- Исходные файлы графов находятся в `graphs_data`.
-- Для корректного запуска MPI версии необходимо, чтобы MPI была установлена и настроена в системе.
-    
 
 ---
 

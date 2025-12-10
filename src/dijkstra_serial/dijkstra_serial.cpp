@@ -1,19 +1,45 @@
+#include <iostream>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <climits>
-#include <chrono>
-
+#include <limits>
 #include <vector>
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+constexpr int INF = std::numeric_limits<int>::max();
 
-#include "../utils/graph_reader/graph_reader.hpp"
+/**
+ * @brief Генерация графа со случайными весами, возвращает плоский вектор n*n (row-major).
+ * @param countVertices Количество вершин.
+ */
+std::vector<int> generateGraph(int countVertices) {
+    std::srand(0); 
 
+    int n = countVertices;
+    std::vector<int> flat(n * n);
 
-#define INF INT_MAX
+    for (int i = 0; i < n; ++i) {
+        for (int j = i; j < n; ++j) {
+            int value;
+            if (i == j) {
+                value = 0;
+            } else {
+                value = std::rand() % 100;
+            }
+
+            // симметрия для неориентированного графа
+            flat[i * n + j] = value;
+            flat[j * n + i] = value; 
+        }
+    }
+
+    return flat;
+}
+
 
 /**
  * @brief Последовательный алгоритм Дейкстры.
@@ -66,19 +92,23 @@ void dijkstra_serial(const std::vector<int> &graph, int n, int start, int *dist,
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        std::printf("Использование: %s <путь_к_файлу>\n", argv[0]);
-        return 1;
+    int total_nodes = 200;
+
+    // Проверяем, передан ли параметр
+    if (argc > 1) {
+        try {
+            total_nodes = std::stoi(argv[1]);
+        } catch (const std::exception &e) {
+            std::cerr << "Некорректный параметр total_nodes: " << argv[1] << "\n";
+            return 1;
+        }
     }
 
-    int n = 0;
-    std::string filepath = argv[1];
+    clock_t read_start = clock();
+    std::vector<int> graph_matrix = generateGraph(total_nodes);
 
-    auto read_start = std::chrono::steady_clock::now();
-    std::vector<int> adjacency = readGraphFromFile(filepath, n);
-
-    int *dist = (int*)std::malloc(n * sizeof(int));
-    int *pred = (int*)std::malloc(n * sizeof(int));
+    int *dist = (int*)std::malloc(total_nodes * sizeof(int));
+    int *pred = (int*)std::malloc(total_nodes * sizeof(int));
 
     if (!dist || !pred) {
         std::fprintf(stderr, "Ошибка выделения памяти dist/pred\n");
@@ -86,27 +116,40 @@ int main(int argc, char *argv[]) {
     }
 
     int start_vertex = 0;
-    auto compute_start = std::chrono::steady_clock::now();
+    clock_t compute_start = clock();
+    dijkstra_serial(graph_matrix, total_nodes, start_vertex, dist, pred);
+    clock_t compute_end = clock();
+    
+    // ========================================================================================
+    // Вывод
+    // ========================================================================================
+    double compute_time_sec = double(compute_end - compute_start) / CLOCKS_PER_SEC;
+    double read_time_sec = double(compute_start - read_start) / CLOCKS_PER_SEC;
+    std::printf("total_nodes: %d \n", total_nodes);
+    std::printf("Compute time: %.6f seconds\n", compute_time_sec);
+    std::printf("Matrix load time: %.6f s\n\n", read_time_sec);
 
-    dijkstra_serial(adjacency, n, start_vertex, dist, pred);
-
-    auto compute_end = std::chrono::steady_clock::now();
-
-    double compute_time_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(compute_end - compute_start).count();
-    printf("Compute time: %.9f seconds\n", compute_time_ms / 1000.0);
-
-    double read_time_ms =
-        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(compute_start - read_start).count();
-    printf("Matrix load time: %.9f s\n", read_time_ms / 1000.0);
+    // Для вывода матрицы смежности графа — раскомментировать:
+    // std::cout << "Graph adjacency matrix:\n";
+    // for (int row = 0; row < total_nodes; ++row) {
+    //     for (int col = 0; col < total_nodes; ++col) {
+    //         if (graph_matrix[row * total_nodes + col] == INF)
+    //             std::cout << "INF ";
+    //         else
+    //             std::cout << graph_matrix[row * total_nodes + col] << " ";
+    //     }
+    //     std::cout << "\n";
+    // }
+    // std::cout << "\n";
 
     // Для вывода путей — раскомментировать:
-    /*
-    for (int v = 0; v < n; v++) {
-        printf("Расстояние до %d = %d, путь: ", v, dist[v]);
-        print_path(pred, start_vertex, v);
-        printf("\n");
-    }
-    */
+    // std::cout << "The distance from the vertex is 0:\n";
+    // for (int v = 0; v < total_nodes; ++v) {
+    //     if (dist[v] == INF)
+    //         std::cout << v << ": INF\n";
+    //     else
+    //         std::cout << v << ": " << dist[v] << "\n";
+    // }
 
     std::free(dist);
     std::free(pred);

@@ -8,10 +8,36 @@
 #include <stdexcept>
 #include <cstdio>
 #include <mpi.h>
-
-#include "../utils/graph_reader/graph_reader.hpp"
-
 constexpr int INF = std::numeric_limits<int>::max();
+
+/**
+ * @brief Генерация графа со случайными весами, возвращает плоский вектор n*n (row-major).
+ * @param countVertices Количество вершин.
+ */
+std::vector<int> generateGraph(int countVertices) {
+    std::srand(0);
+
+    int n = countVertices;
+    std::vector<int> flat(n * n);
+
+    for (int i = 0; i < n; ++i) {
+        for (int j = i; j < n; ++j) {
+            int value;
+            if (i == j) {
+                value = 0;
+            } else {
+                value = std::rand() % 100;
+            }
+            
+            // симметрия для неориентированного графа
+            flat[i * n + j] = value;
+            flat[j * n + i] = value;
+        }
+    }
+
+    return flat;
+}
+
 
 /**
  * @brief Параллельная реализация алгоритма Дейкстры с использованием MPI.
@@ -24,7 +50,7 @@ constexpr int INF = std::numeric_limits<int>::max();
  * @param start Начальная вершина (глобальный индекс).
  * @param comm MPI-коммуникатор.
  */
-void dijkstra_mpi(int *local_adj, int *local_dist, int *local_pred, int total_nodes, int rows_per_proc, int start, MPI_Comm comm) {
+void dijkstra_mpi(int *local_graph_matrix, int *local_dist, int *local_pred, int total_nodes, int rows_per_proc, int start, MPI_Comm comm) {
     int rank = 0, num_procs = 1;
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &num_procs);
@@ -49,7 +75,7 @@ void dijkstra_mpi(int *local_adj, int *local_dist, int *local_pred, int total_no
     }
 
     // Основной цикл: n итераций выбора минимальной вершины
-    for (int iter = 0; iter < total_nodes; ++iter) {
+    for (int iteration = 0; iteration < total_nodes; ++iteration) {
         local_min_pair = {INF, -1};
 
         // Находим минимальную непосещённую локальную вершину
@@ -73,7 +99,7 @@ void dijkstra_mpi(int *local_adj, int *local_dist, int *local_pred, int total_no
         int current_dist = global_min_pair[0];
         if (rank == owner_rank) {
             // Владелец вершины отправляет всю свою строку смежности
-            std::memcpy(u_row_buffer.data(), &local_adj[local_u_idx * total_nodes], total_nodes * sizeof(int));
+            std::memcpy(u_row_buffer.data(), &local_graph_matrix[local_u_idx * total_nodes], total_nodes * sizeof(int));
         }
 
         // Широковещательно передаём расстояние и строку смежности владельцем
@@ -106,35 +132,34 @@ void dijkstra_mpi(int *local_adj, int *local_dist, int *local_pred, int total_no
  * представлена как плоский массив целых (row-major).
  */
 int main(int argc, char *argv[]) {
+    // Инициализация
     MPI_Init(&argc, &argv);
-
     MPI_Comm comm = MPI_COMM_WORLD;
     int rank = 0, num_procs = 1;
-    MPI_Comm_rank(comm, &rank);
-    MPI_Comm_size(comm, &num_procs);
-    MPI_Barrier(comm);
+    MPI_Comm_rank(comm, &rank);      // Cохраняет в rank номер текущего процесса
+    MPI_Comm_size(comm, &num_procs); // Cохраняет в num_proc количество процессов
 
-    double read_start_time = MPI_Wtime();
+    int total_nodes = 200;
 
-    if (argc < 2) {
-        if (rank == 0) {
-            std::cout << "Использование: " << argv[0] << " <путь_к_файлу>\n";
+    // Проверяем, передан ли параметр
+    if (argc > 1) {
+        try {
+            total_nodes = std::stoi(argv[1]);
+        } catch (const std::exception &e) {
+            std::cerr << "Некорректный параметр total_nodes: " << argv[1] << "\n";
+            return 1;
         }
-        MPI_Finalize();
-        return 1;
     }
 
-    std::string filepath = argv[1];
-    int total_nodes = 0;
-    std::vector<int> adjacency_flat;
+    // Сохраняем время
+    MPI_Barrier(comm);
+    double read_start_time = MPI_Wtime();
+
+
+    std::vector<int> graph_matrix;
 
     if (rank == 0) {
-        try {
-            adjacency_flat = readGraphFromFile(filepath, total_nodes);
-        } catch (const std::exception &ex) {
-            std::cerr << "Ошибка при чтении графа: " << ex.what() << '\n';
-            MPI_Abort(comm, 1);
-        }
+        graph_matrix = generateGraph(total_nodes);
     }
 
     // Передаём число вершин всем процессам
@@ -152,7 +177,7 @@ int main(int argc, char *argv[]) {
     MPI_Barrier(comm);
 
     // Локальные буферы для каждого процесса
-    std::vector<int> local_adj(rows_per_proc * total_nodes);
+    std::vector<int> local_graph_matrix(rows_per_proc * total_nodes);
     std::vector<int> local_dist(rows_per_proc);
     std::vector<int> local_pred(rows_per_proc);
 
@@ -162,22 +187,24 @@ int main(int argc, char *argv[]) {
             int offset = p * rows_per_proc * total_nodes;
 
             if (p == 0) {
-                std::memcpy(local_adj.data(), adjacency_flat.data() + offset, rows_per_proc * total_nodes * sizeof(int));
+                std::memcpy(local_graph_matrix.data(), graph_matrix.data() + offset, rows_per_proc * total_nodes * sizeof(int));
                 continue;
             }
             
-            MPI_Send(adjacency_flat.data() + offset, rows_per_proc * total_nodes, MPI_INT, p, 0, comm);
+            MPI_Send(graph_matrix.data() + offset, rows_per_proc * total_nodes, MPI_INT, p, 0, comm);
         }
     } else {
-        MPI_Recv(local_adj.data(), rows_per_proc * total_nodes, MPI_INT, 0, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Recv(local_graph_matrix.data(), rows_per_proc * total_nodes, MPI_INT, 0, 0, comm, MPI_STATUS_IGNORE);
     }
 
+    // Сохраняем время
     MPI_Barrier(comm);
     double parallel_start_time = MPI_Wtime();
 
     // Запуск параллельного Dijkstra по локальному блоку строк
-    dijkstra_mpi(local_adj.data(), local_dist.data(), local_pred.data(), total_nodes, rows_per_proc, 0, comm);
+    dijkstra_mpi(local_graph_matrix.data(), local_dist.data(), local_pred.data(), total_nodes, rows_per_proc, 0, comm);
 
+    // Сохраняем время
     MPI_Barrier(comm);
     double parallel_end_time = MPI_Wtime();
 
@@ -193,20 +220,38 @@ int main(int argc, char *argv[]) {
     MPI_Gather(local_dist.data(), rows_per_proc, MPI_INT, recv_dist_ptr, rows_per_proc, MPI_INT, 0, comm);
     MPI_Gather(local_pred.data(), rows_per_proc, MPI_INT, recv_pred_ptr, rows_per_proc, MPI_INT, 0, comm);
 
+    // ========================================================================================
     // Вывод
+    // ========================================================================================
     if (rank == 0) {
-        std::printf("Compute time: %.9f seconds\n", parallel_end_time - parallel_start_time);
-        std::printf("Matrix load time: %.9f s\n", parallel_start_time - read_start_time);
+        std::printf("total_nodes: %d \n", total_nodes);
+        std::printf("Compute time: %.6f seconds\n", parallel_end_time - parallel_start_time);
+        std::printf("Matrix load time: %.6f s\n\n", parallel_start_time - read_start_time);
     }
+
+    // Для вывода матрицы смежности графа — раскомментировать:
+    // if (rank == 0) {
+    //     std::cout << "Graph adjacency matrix:\n";
+    //     for (int row = 0; row < total_nodes; ++row) {
+    //         for (int col = 0; col < total_nodes; ++col) {
+    //             if (graph_matrix[row * total_nodes + col] == INF)
+    //                 std::cout << "INF ";
+    //             else
+    //                 std::cout << graph_matrix[row * total_nodes + col] << " ";
+    //         }
+    //         std::cout << "\n";
+    //     }
+    //     std::cout << "\n";
+    // }
 
     // Для вывода путей — раскомментировать:
     // if (rank == 0) {
-    //     std::cout << "Расстояния от вершины 0:\n";
+    //     std::cout << "The distance from the vertex is 0:\n";
     //     for (int v = 0; v < total_nodes; ++v) {
     //         if (global_dist[v] == INF)
-    //             std::cout << "v" << v << ": INF\n";
+    //             std::cout << v << ": INF\n";
     //         else
-    //             std::cout << "v" << v << ": " << global_dist[v] << "\n";
+    //             std::cout << v << ": " << global_dist[v] << "\n";
     //     }
     // }
 
