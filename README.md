@@ -95,6 +95,65 @@ Matrix load time: 0.000005 seconds
 3: 77
 ```
 
+## От запуска к запуску результаты сильно могут отличаться (возможно из-за кэша процессора?)
+```bash
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 4 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 5.526386 seconds
+Matrix load time: 21.106766 s
+```
+
+```bash
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 8 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 5.861026 seconds
+Matrix load time: 21.960471 s
+```
+
+```bash
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 8 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 4.963197 seconds
+Matrix load time: 25.180927 s
+```
+
+## Сначала казалось бы получаю плавный прирост, но после идут странные результаты:
+```
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 4 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 5.526386 seconds
+Matrix load time: 21.106766 s
+
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 8 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 5.861026 seconds
+Matrix load time: 21.960471 s
+
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 8 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 4.963197 seconds
+Matrix load time: 25.180927 s
+
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 2 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 5.440561 seconds
+Matrix load time: 19.399003 s
+
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ mpiexec -np 1 ./dijkstra_mpi/dijkstra_mpi.out 30000
+total_nodes: 30000 
+Compute time: 7.095762 seconds
+Matrix load time: 22.146261 s
+
+victo@Victor:/mnt/c/Users/victo/OneDrive/Рабочий стол/Education/diplom/practice/SSSP-dijkstra/src$ ./dijkstra_serial/dijkstra_serial.out 30000
+total_nodes: 30000 
+Compute time: 8.563331 seconds
+Matrix load time: 18.032995 s
+
+```
+
+## Необходимо попробовать сравнить результаты с этой программой (если это целесообразно и наши программы делают одно и то же):
+[https://github.com/Lehmannhen/MPI-Dijkstra/tree/master](https://github.com/Lehmannhen/MPI-Dijkstra/tree/master)
+
 
 ## 5. Алгоритмическая часть 
 ...
